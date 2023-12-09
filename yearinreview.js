@@ -13,7 +13,7 @@
       buttons[i].addEventListener('click', catchId);
     }
 
-  let container = document.getElementById("container");
+  let container = document.getElementById("myContainer");
 let animation;
 let animationCompleted = true; 
 let zoom;

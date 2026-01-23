@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stone Farm Service Sprint</title>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --card-bg: #2d2d2d;
+            --stone-gold: #D4AF37; 
+            --electric-orange: #FF6B35;
+            --text-main: #f4f4f4;
+            --success: #00E676;
+            --error: #FF5252;
+        }
+
+        body {
+            font-family: 'Georgia', serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #app-container {
+            width: 100%;
+            max-width: 450px;
+            background: var(--card-bg);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        header {
+            padding: 20px;
+            text-align: center;
+            background: #252525;
+            border-bottom: 2px solid var(--stone-gold);
+        }
+
+        h1 { margin: 0; font-size: 1rem; text-transform: uppercase; letter-spacing: 3px; color: var(--stone-gold); }
+        
+        #timer-container {
+            width: 100%;
+            height: 8px;
+            background: #111;
+            margin-top: 15px;
+            border-radius: 4px;
+        }
+        #timer-bar {
+            height: 100%;
+            width: 100%;
+            background: var(--electric-orange);
+            transition: width 0.1s linear;
+        }
+
+        #game-area {
+            flex: 1;
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .question-text {
+            font-size: 1.25rem;
+            margin-bottom: 25px;
+            line-height: 1.5;
+            min-height: 90px;
+        }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            width: 100%;
+        }
+
+        button {
+            background: #3d3d3d;
+            border: 1px solid #555;
+            color: white;
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            font-family: 'Georgia', serif;
+        }
+
+        #cheat-btn {
+            margin-bottom: 20px;
+            background: rgba(212, 175, 55, 0.1);
+            border: 1px dashed var(--stone-gold);
+            color: var(--stone-gold);
+            width: 90%;
+            align-self: center;
+            padding: 10px;
+        }
+
+        .screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            padding: 40px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+        
+        .hidden { display: none !important; }
+
+        .big-btn {
+            background: var(--stone-gold);
+            color: #000;
+            border: none;
+            font-weight: bold;
+            font-size: 1.4rem;
+            width: 100%;
+            margin-top: 30px;
+        }
+
+        /* SFX Animations */
+        .flash-success { animation: flashGreen 0.2s; }
+        .flash-error { animation: flashRed 0.2s; }
+        @keyframes flashGreen { 50% {background: var(--success);} }
+        @keyframes flashRed { 50% {background: var(--error);} }
+
+    </style>
+</head>
+<body>
+
+    <div id="app-container">
+        <div id="start-screen" class="screen">
+            <h1 style="font-size: 2rem;">Stone Farm<br>Service Sprint</h1>
+            <p style="color: #888; margin-top: 15px;">15 Random Tables. 60 Seconds.</p>
+            <button class="big-btn" onclick="startGame()">START SHIFT</button>
+        </div>
+
+        <div id="end-screen" class="screen hidden">
+            <h1 id="final-score" style="font-size: 3rem;">0/15</h1>
+            <p id="feedback-msg"></p>
+            
+            <button class="big-btn" onclick="restartGame()">RE-RUN SHIFT</button>
+        </div>
+
+        <header>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span id="score-display">Cleared: 0</span>
+                <h1>SHIFT IN PROGRESS</h1>
+            </div>
+            <div id="timer-container"><div id="timer-bar"></div></div>
+        </header>
+
+        <div id="game-area">
+            <div id="question-text" class="question-text">Ready?</div>
+            <div id="options-container" class="options-grid"></div>
+        </div>
+
+        <button id="cheat-btn" onclick="alert('Check your physical Cheatsheet! Clock is ticking!')">📖 Consult the Cheatsheet</button>
+    </div>
+
+<script>
+        let audioCtx;
+        let metronome;
+        let timerInterval; // Named this so we can clear it reliably
+        
+        const questionPool = [
+            { q: "How many production steps for a **Sparkler**?", options: ["1 Step", "2 Steps", "3 Steps", "4 Steps"], a: 2 },
+            { q: "What is the serving option price for a **Sangria Glass**?", options: ["$7.00", "$9.00", "$11.00", "$14.00"], a: 1 },
+            { q: "Which **Beer** is a German Lager?", options: ["McGowan", "Vienna", "Helles", "Stargazer"], a: 2 },
+            { q: "What is the price for a **Sangria Tasting**?", options: ["$15.00", "$18.00", "$20.00", "$28.00"], a: 2 },
+            { q: "How many ounces of **spirit** in a Spiked Cider?", options: ["1oz", "2oz", "3oz", "4oz"], a: 2 },
+            { q: "Which **Spiked Cider** is a Popular Selection?", options: ["Salted Carmel", "Apple Pie", "Peach Harvest", "Sinful Cinnamon"], a: 2 },
+            { q: "The **Handsfree** Beer is what type?", options: ["Light Lager", "Hazy IPA", "New England IPA", "Cream Ale"], a: 2 },
+            { q: "What is the alcohol content of **Dolce Frizzante**?", options: ["11.5%", "12.0%", "12.5%", "13.0%"], a: 2 },
+            { q: "How many **marshmallows** in a Spiked Hot Chocolate?", options: ["None", "1", "2", "3"], a: 1 },
+            { q: "Price of a **Spiked Hot Chocolate**?", options: ["$11.00", "$12.00", "$14.00", "$18.00"], a: 2 },
+            { q: "A **Mug** adds how much to the order price?", options: ["$5.00", "$10.00", "$15.00", "$20.00"], a: 2 },
+            { q: "Which hot chocolate uses **Peppermint Vodka**?", options: ["Triple Chocolate", "Peppermint Paradise", "Vanilla Dreaming", "Reese Rendevous"], a: 1 },
+            { q: "Alcohol content of **Peanut Carmel** Cider?", options: ["35%", "40%", "12%", "5%"], a: 0 },
+            { q: "Which beer is a **Cream Ale**?", options: ["Lighthouse", "Mountain Brew", "Vienna", "McGowan"], a: 3 },
+            { q: "Which **Sangria** is the Popular Selection?", options: ["Harvest", "Sunset", "Summer Fields", "Rubies of the Bog"], a: 1 },
+            { q: "The **Vienna** beer is what flavor profile?", options: ["Hazy IPA", "German Lager", "Cider", "Australian Lager"], a: 3 },
+            { q: "What is the spirit in **Reese Rendevous**?", options: ["Vanilla Vodka", "Peppermint Vodka", "Peanut Butter Bourbon", "Cinnamon Vodka"], a: 2 },
+            { q: "How many pours of **juice** for a Mimosa?", options: ["1 pour", "2 pours", "Until color reflects bright", "Full glass"], a: 2 },
+            { q: "Price range for **Beers** at Stone Farm?", options: ["$5.00", "$7.00", "$9.00", "$11.00"], a: 1 },
+            { q: "Which menu category has **tasting options** for 5 selections?", options: ["Beers", "Mimosas", "Sangrias", "Spiked Ciders"], a: 2 },
+            { q: "Serving option for **Sparklers**?", options: ["Bottle", "Tasting", "Glass", "Can"], a: 2 },
+            { q: "ABV of **Handsfree** Beer?", options: ["4.8%", "5.0%", "6.4%", "6.8%"], a: 3 },
+            { q: "Spirit used in **Apple Pie** Spiked Cider?", options: ["Apple Bourbon", "Carmel Vodka", "Cinnamon Vodka", "Peach Bourbon"], a: 0 },
+            { q: "Which cider uses **Cinnamon Vodka**?", options: ["Apple Pie", "Sinful Cinnamon", "Salted Carmel", "Peach Harvest"], a: 1 },
+            { q: "Price of a **Mimosa**?", options: ["$9.00", "$11.00", "$14.00", "$20.00"], a: 2 },
+            { q: "Which beer is a **Light Lager**?", options: ["Stargazer", "McGowan", "Mountain Brew", "Vienna"], a: 2 },
+            { q: "Popular selection from **Fun Fall Sippers**?", options: ["Honey Crisp", "Apple Pie", "Sinful Cinnamon", "Peanut Carmel"], a: 2 },
+            { q: "What is the **Sunset** Sangria flavor?", options: ["Raspberry", "Apple", "Peach", "Cranberry"], a: 2 },
+            { q: "What is the **Harvest** Sangria flavor?", options: ["Apple", "Peach", "Raspberry", "Strawberry"], a: 0 },
+            { q: "Which beer is the **Lighthouse**?", options: ["Hazy IPA", "German Lager", "Light Lager", "Cream Ale"], a: 2 }
+        ];
+
+        let gameQuestions = [];
+        let currentIdx = 0;
+        let score = 0;
+        let timeLeft = 100;
+        const totalTime = 60;
+
+        function tryStartAudio() {
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioCtx.state === 'suspended') { audioCtx.resume(); }
+                
+                // Clear any old metronome before starting a new one
+                if (metronome) clearInterval(metronome);
+
+                let beat = 0;
+                metronome = setInterval(() => {
+                    if (audioCtx.state !== 'running') return;
+                    const osc = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    osc.connect(g); g.connect(audioCtx.destination);
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(beat % 2 === 0 ? 55 : 35, audioCtx.currentTime);
+                    g.gain.setValueAtTime(0.08, audioCtx.currentTime);
+                    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+                    osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+                    beat++;
+                }, 600);
+            } catch (e) { console.log("Audio issue"); }
+        }
+
+        function playSFX(f, type) {
+            if(!audioCtx || audioCtx.state !== 'running') return;
+            try {
+                const o = audioCtx.createOscillator();
+                const g = audioCtx.createGain();
+                o.connect(g); g.connect(audioCtx.destination);
+                o.frequency.setValueAtTime(f, audioCtx.currentTime);
+                o.type = type;
+                g.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.3);
+                o.start(); o.stop(o.context.currentTime + 0.3);
+            } catch (e) {}
+        }
+
+        // RESET FUNCTION: This replaces location.reload()
+        function restartGame() {
+            // Hide End Screen
+            document.getElementById('end-screen').classList.add('hidden');
+            // Reset state
+            currentIdx = 0;
+            score = 0;
+            timeLeft = 100;
+            document.getElementById('score-display').innerText = `Cleared: 0`;
+            document.getElementById('timer-bar').style.width = "100%";
+            // Jump straight to the start logic
+            startGame();
+        }
+
+        function startGame() {
+            // Safety: Clear intervals if they are somehow still running
+            if (timerInterval) clearInterval(timerInterval);
+            
+            document.getElementById('start-screen').classList.add('hidden');
+            gameQuestions = [...questionPool].sort(() => 0.5 - Math.random()).slice(0, 15);
+            loadQuestion();
+            
+            timerInterval = setInterval(() => {
+                timeLeft -= (100 / (totalTime * 10));
+                document.getElementById('timer-bar').style.width = timeLeft + "%";
+                if(timeLeft <= 0) { 
+                    clearInterval(timerInterval); 
+                    endGame(); 
+                }
+            }, 100);
+
+            tryStartAudio();
+        }
+
+        function loadQuestion() {
+            if(currentIdx >= gameQuestions.length) { endGame(); return; }
+            const q = gameQuestions[currentIdx];
+            document.getElementById('question-text').innerHTML = q.q;
+            const container = document.getElementById('options-container');
+            container.innerHTML = '';
+            
+            q.options.forEach((opt, i) => {
+                const b = document.createElement('button');
+                b.innerText = opt;
+                b.onclick = () => {
+                    const app = document.getElementById('app-container');
+                    if(i === q.a) {
+                        score++;
+                        playSFX(900, 'sine');
+                        app.classList.add('flash-success');
+                    } else {
+                        timeLeft -= 6; // Slightly higher penalty for mistakes
+                        playSFX(100, 'square');
+                        app.classList.add('flash-error');
+                    }
+                    setTimeout(() => app.classList.remove('flash-success','flash-error'), 200);
+                    document.getElementById('score-display').innerText = `Cleared: ${score}`;
+                    currentIdx++;
+                    loadQuestion();
+                };
+                container.appendChild(b);
+            });
+        }
+
+        function endGame() {
+            if(metronome) clearInterval(metronome);
+            if(timerInterval) clearInterval(timerInterval);
+            document.getElementById('end-screen').classList.remove('hidden');
+            document.getElementById('final-score').innerText = `${score}/15`;
+            const msg = document.getElementById('feedback-msg');
+            msg.innerText = score > 12 ? "MASTER OF THE CELLAR!" : "Back to the Cheatsheet!";
+        }
+    </script>
+</body>
+</html>
